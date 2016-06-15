@@ -5,6 +5,7 @@
 
 	<script src="js/jquery-1.11.2.min.js"></script>
 	<script src="js/jquery-ui.min.js"></script>
+	
 	<script src="js/d3.min.js"></script>
 	<script src="js/nv.d3.min.js"></script>
 	<script src="js/linegraph.js"></script>
@@ -20,7 +21,7 @@
 	<form action="UploadServlet" method="post" enctype="multipart/form-data">
 		<input type="file" name="file" size="50" />
 		<br />
-		<input type="submit" value="Upload File" />
+		<input id = "upload" type="button" value="Upload File" onClick= />
 	</form>
 	<br />
 	<br />
@@ -28,7 +29,8 @@
 	<button id="emailSched" type="button" >Send email</button>
 	
 	<br />
-	<br />
+	<input type="radio" class = "quick" name="quicksearch" value="quick" checked="checked"> Quick Search
+  	<input type="radio" class="thorough" name="thoroughsearch" value="thorough" > Thorough Search(Non Functional)<br>
 	<br />
 	<br />
 	<div id ="chart" ><svg></svg></div>

@@ -9,14 +9,19 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import javax.websocket.Session;
 
 import org.apache.commons.io.FileUtils;
+
+import com.sun.org.apache.xerces.internal.impl.xpath.regex.ParseException;
 
 import services.MailService;
 import components.Block;
@@ -38,16 +43,21 @@ public class HillClimber {
 	private double VacationPreferenceMultiplier;
 	private double preAssignmentMultiplier;
 	
+	private double randomizerMultiplier;
+	private boolean fastSchedule;
+	private double bestScheduleSoFar;
+	
 	private ArrayList<Double> scoreList;
 	
 	private static final int maxNumAssignments = 28;
 	
 	private String fileName;
+	private static final String directory = "/home/ubuntu/Tercio/JHU/";
 
 	private ArrayList<Block> grandBlockList;
 	private HashMap<String,ArrayList<Block>> blockLookup;
 
-	public HillClimber(ArrayList<Service> services, ArrayList<Person> people, ArrayList<String> blockNames, double[] multipliers, String fileName, Session session){
+	public HillClimber(ArrayList<Service> services, ArrayList<Person> people, ArrayList<String> blockNames, double[] multipliers, String fileName, boolean fastSchedule, double bestScheduleSoFar, Session session, ArrayList<Double> scoreList){
 		this.session = session;
 		this.services = services;
 		this.people = people;
@@ -60,6 +70,20 @@ public class HillClimber {
 		blockYearConstraintMultiplier 			= multipliers[3];
 		blockDurationMultiplier					= multipliers[4];
 		VacationPreferenceMultiplier 			= multipliers[5];
+		
+		/**
+		 * When generating a quick and dirty schedule, the user will likely want to 
+		 * compare small differences as a function of the multiplier values above. 
+		 * As such, we don't want to randomly initialize anything. Rather, we want
+		 * the scheduler to be deterministic.
+		 */
+		this.fastSchedule = fastSchedule;
+		if (fastSchedule){
+			randomizerMultiplier 				= 0;
+		} else {
+			randomizerMultiplier 				= 10;
+		}
+		this.bestScheduleSoFar = bestScheduleSoFar;
 
 		//Get all of the blocks.
 		grandBlockList = new ArrayList<Block>();
@@ -101,16 +125,18 @@ public class HillClimber {
 			blockLookup.put(blockName, blockList);
 		}
 		
-		scoreList = new ArrayList<Double>();
+		
+		this.scoreList = scoreList;
 	}
 
-	public void solve() throws IOException {
+	public ArrayList<Double> solve() throws IOException, java.text.ParseException {
 
 		/**
 		 * TODO: Progress bars for these steps?
 		 */
 		// Step 1 of 4
 		initialSolution();		//Generate initial solution
+		session.getBasicRemote().sendText("Done Parsing~Parsing");
 		session.getBasicRemote().sendText("Generate Intial Solution~25");
 		
 		// Step 2 of 4
@@ -123,7 +149,6 @@ public class HillClimber {
 
 		// Step 4 of 4
 		twoByTwoOptAcrossBlocks();		//Perform 2-opt (2 people x 2 Blocks)
-		session.getBasicRemote().sendText("Perform 2-opt (2 people x 2 Blocks)~100");
 
 
 		/////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +156,7 @@ public class HillClimber {
 		/////////////////////////////////////////////////////////////////////////////////
 		
 		printSchedule("(Schedule Final)");
+		return scoreList;
 	}
 	
 	private double getOverallScore(){
@@ -170,10 +196,11 @@ public class HillClimber {
 
 		double score = -personalViolationsCounter-blockYearViolationsCounter-blockMinMaxViolationsCounter
 				-blockDurationViolationsCounter+vacScore+firmConstraintPoints;
+		System.out.println("Score:  " + score);
 		return score;
 	}
 
-	private void initialSolution() throws IOException {
+	private void initialSolution() throws IOException, java.text.ParseException {
 
 
 		/////////////////////////////////////////////////////////////////////////////
@@ -196,6 +223,9 @@ public class HillClimber {
 					}
 
 					double score = getScore(block,person);
+					if  (fastSchedule){
+						score += randomizerMultiplier*person.getRandomizer();
+					}
 
 					//Find the assignment that has the biggest benefit.
 					if (score > max_score){
@@ -376,7 +406,7 @@ public class HillClimber {
 		return score;
 	}
 
-	private void oneByNOpt() throws IOException{
+	private void oneByNOpt() throws IOException, java.text.ParseException{
 		/////////////////////////////////////////////////////////////////////////////
 		/////           Hill Climbing (1-Opt for Bad Assignments)               /////
 		/////////////////////////////////////////////////////////////////////////////
@@ -511,7 +541,7 @@ public class HillClimber {
 		}
 	}
 
-	private void twoByOneOptAcrossBlocks() throws IOException{
+	private void twoByOneOptAcrossBlocks() throws IOException, java.text.ParseException{
 		/////////////////////////////////////////////////////////////////////////////
 		/////           Hill Climbing (2-Opt for Bad Assignments)               /////
 		/////////////////////////////////////////////////////////////////////////////
@@ -685,7 +715,7 @@ public class HillClimber {
 		}
 	}
 
-	private void twoByTwoOptAcrossBlocks() throws IOException {
+	private void twoByTwoOptAcrossBlocks() throws IOException, java.text.ParseException {
 
 		/////////////////////////////////////////////////////////////////////////////
 		/////           Hill Climbing (2-Opt for Bad Assignments)               /////
@@ -898,7 +928,7 @@ public class HillClimber {
 		}
 	}
 
-	private void threeByOneOptAcrossBlocks() throws IOException{
+	private void threeByOneOptAcrossBlocks() throws IOException, java.text.ParseException{
 		/////////////////////////////////////////////////////////////////////////////
 		/////           Hill Climbing (2-Opt for Bad Assignments)               /////
 		/////////////////////////////////////////////////////////////////////////////
@@ -1245,7 +1275,7 @@ public class HillClimber {
 		return numViolatingFirmConstraint;
 	}
 	
-	public void printSchedule(String string) throws IOException{
+	public void printSchedule(String string) throws IOException, java.text.ParseException{
 		
 		
 		/**
@@ -1253,18 +1283,51 @@ public class HillClimber {
 		 * the scheduling is improving over time.
 		 */
 		double overallScore = getOverallScore();
-		scoreList.add(overallScore);
+		
+		//Only print the schedule if it is better than the last.
+		if (overallScore > bestScheduleSoFar){
+			bestScheduleSoFar = overallScore;
+			scoreList.add(overallScore);
+			long time = System.currentTimeMillis();
+			Date date = new Date(time);
+			if(!fastSchedule){
+				System.out.println(date.toString());
+				session.getBasicRemote().sendText(date.toString() + "~ThoroughUpdate");
+			}
+			
+		} else {
+
+			return;
+		}
 		
 		//Convert the score list to the range 0 to 1
 		double[] y_values = new double[scoreList.size()];
 		double[] x_values = new double[scoreList.size()];
-		double scoreMax = scoreList.get(0);
-		double scoreMin = overallScore;
+		
+		double scoreMin = Double.MIN_VALUE;
+		double scoreMax = Double.MAX_VALUE;
+		for(int i = 0; i<=scoreList.size()-1; i++){
+			if(scoreList.get(i) < scoreMax){
+				scoreMax = scoreList.get(i);
+			}
+			if(scoreList.get(i) > scoreMin){
+				scoreMin = scoreList.get(i);
+			}
+		}
+		
+//		double scoreMax = scoreList.get(0);
+//		
+//		double scoreMin = overallScore;
 		double scoreDiff = Math.abs(scoreMax-scoreMin);
 		double x_counter = 0;
 		if (scoreDiff > 0){
 			for (int i = 0; i < scoreList.size(); i ++){
 				y_values[i] = Math.abs(scoreList.get(i)-scoreMin)/scoreDiff;
+				
+				if(y_values[i] > 1){
+					System.out.println("Bug");
+				}
+				
 				x_values[i] = x_counter/scoreList.size();
 				x_counter++;
 //				System.out.print(scoreListNormalized[i] + " ");
@@ -1272,275 +1335,189 @@ public class HillClimber {
 		} else {
 			for (int i = 0; i < scoreList.size(); i ++){
 				y_values[i] = 1.0;
+				
 				x_values[i] = x_counter/scoreList.size();
 				x_counter++;
 //				System.out.print(scoreListNormalized[i] + " ");
 			}	
 		}
 		
-		
 		String pointsString = "";
 		for(int i = 0; i <= x_values.length - 1; i++){
 			String point = null;
 			double x = x_values[i];
 			double y = y_values[i];
-			
 			if(i != x_values.length -1){
 				point = x + "," + y +"" + "|";
 			}else{
-
 				point = x + "," + y +"" + "";
-
-
 			}
-			
-			pointsString = pointsString + point;
-			
-			
-
-			
+			pointsString = pointsString + point;			
 		}
 		System.err.println("Score: " + pointsString);
 		session.getBasicRemote().sendText(pointsString + "~Score");
 
 
-
-		
-		/**
-		 * TODO: Make that line graph where the contents
-		 * of scoreListNormalized are the y-values and the
-		 * indices are the x-values. In other words, for each
-		 * element i of y_values, there is a point (x,y) where
-		 * y = y_values[i] and x = x_values[i];
-		 */
-		
-		
-		/**
-		 * Matthew will send new code for the following code.
-		 *  vvv FROM HERE vvv
-		 */
 		//Print out schedule to a csv file
-		PrintWriter writer;
-		try {
-			String directory = "C:\\Users\\Giovanni\\Documents\\JHU\\";
-			writer = new PrintWriter(directory + fileName + string  +  ").csv", "UTF-8");
-			
+		PrintWriter writer = new PrintWriter(directory + fileName + string + "(Score " + overallScore +  ").csv", "UTF-8");
 
-			//Print out information about the people
-			writer.print("Legend:,* - Pre-Assignment,\n\n");
-			writer.print("Name,Year,Firm ,# Pre-Assignments,Block Year Violation,Overall Violations,Yearly Violations,Vac Score,");
-			for (int i = 0; i < blockNames.size(); i ++){
-				writer.print(blockNames.get(i)+ ",");
+		//Print out information about the people
+		writer.print("Legend:,* - Pre-Assignment,\n\n");
+		writer.print("Name,Year,Firm ,# Pre-Assignments,Block Year Violation,Overall Violations,Yearly Violations,Firm Violations,Vac Score,");
+		for (int i = 0; i < blockNames.size(); i ++){
+			writer.print(blockNames.get(i)+ ",");
+		}
+		writer.print("\n");
+		for (int j = 0; j < people.size(); j ++){
+			Person person = people.get(j);
+			HashMap<String, Block> schedule = person.getSchedule();
+
+			writer.print("\""+person.getName() +"\""+ "," + person.getYear() + "," + person.getFirm() + ",");
+
+			writer.print(person.getNumberOfPreAssignments() +",");            
+
+			//What is someone's score?
+			writer.print(person.getBlockYearConstraintViolations() +",");
+			writer.print(person.getOverallViolations() +",");
+			writer.print(person.getYearlyViolations() +",");
+			writer.print(person.getFirmViolations() + ",");
+
+			//What is someone's vacation score?
+			double vacationScore = -1;
+			double maxVacationScore = 0;
+			if (!person.getIgnoreVacationPreference()){
+				vacationScore = person.getTotalVacationScore();
+				maxVacationScore = person.getMaxVacationScore();
 			}
-			writer.print("\n");
-			for (int j = 0; j < people.size(); j ++){
-				Person person = people.get(j);
-				HashMap<String, Block> schedule = person.getSchedule();
 
-				writer.print("\""+person.getName() +"\""+ "," + person.getYear() + "," + person.getFirm() + ",");
+			if (vacationScore > 0){
+				writer.print(vacationScore + " of "  + maxVacationScore + ",");
+			} else {
+				writer.print("No Preference Provided,");
+			}
 
-				writer.print(person.getNumberOfPreAssignments() +",");			
+			//What is their schedule?
+			for (int i = 0; i < blockNames.size(); i ++){
+				if (schedule.containsKey(blockNames.get(i))){
+					Block block = schedule.get(blockNames.get(i));
 
-				//What is someone's score?
-				writer.print(person.getBlockYearConstraintViolations() +",");
-				writer.print(person.getOverallViolations() +",");
-				writer.print(person.getYearlyViolations() +",");
-
-				//What is someone's vacation score?
-				double vacationScore = -1;
-				double maxVacationScore = 0;
-				if (!person.getIgnoreVacationPreference()){
-					vacationScore = person.getTotalVacationScore();
-					maxVacationScore = person.getMaxVacationScore();
-				}
-
-				if (vacationScore > 0){
-					writer.print(vacationScore + " of "  + maxVacationScore + ",");
-				} else {
-					writer.print("No Preference Provided,");
-				}
-
-				//What is their schedule?
-				for (int i = 0; i < blockNames.size(); i ++){
-					if (schedule.containsKey(blockNames.get(i))){
-						Block block = schedule.get(blockNames.get(i));
-
-						if  (block.getDurationType() == -1){
-							writer.print(block.getRotation().getName());
-							if (!person.isChangeable(block)){
-								writer.print("*");
-							}
-							writer.print(",");
-						} else {
-							//What is this person's block duration score?
-							int totalInARow = 0;
-							Block priorBlock = block.getPriorBlock();
-							Block postBlock = block.getPostBlock();
-							if (priorBlock == null && postBlock == null){
-								//No adjacent blocks. I don't think this will ever happen.
-							} else {
-								//How far into the future can we go and still have the same person?
-								int futureBlocksCount = 0;
-								while (true){
-									if (postBlock != null){
-										if (postBlock.getPeople().contains(person)){
-											futureBlocksCount++;
-											postBlock = postBlock.getPostBlock();
-											continue;
-										} else {
-											break;
-										}
-									} else {
-										break;
-									}
-								}
-								//How far into the past can we go and still have the same person?
-								int pastBlocksCount = 0;
-								while (true){
-									if (priorBlock != null){
-										if (priorBlock.getPeople().contains(person)){
-											pastBlocksCount++;
-											priorBlock = priorBlock.getPriorBlock();
-											continue;
-										} else {
-											break;
-										}
-									} else {
-										break;
-									}
-								}
-
-								totalInARow = pastBlocksCount + futureBlocksCount + 1; //+1 for the new assignment
-							}
-							String blockRotationName = block.getRotation().getName();
-							writer.print(blockRotationName);
-							if (!person.isChangeable(block)){
-								writer.print("*");
-							}
-							if (totalInARow != block.getDurationType()){
-								writer.print("(" + totalInARow + "/" + block.getDurationType() + ")");
-							}
-							writer.print(",");
-
+					if  (block.getDurationType() == -1){
+						writer.print(block.getRotation().getName());
+						if (!person.isChangeable(block)){
+							writer.print("*");
 						}
+						writer.print(",");
 					} else {
-						writer.print("VAC,");
+						//What is this person's block duration score?
+						int totalInARow = 0;
+						Block priorBlock = block.getPriorBlock();
+						Block postBlock = block.getPostBlock();
+						if (priorBlock == null && postBlock == null){
+							//No adjacent blocks. I don't think this will ever happen.
+						} else {
+							//How far into the future can we go and still have the same person?
+							int futureBlocksCount = 0;
+							while (true){
+								if (postBlock != null){
+									if (postBlock.getPeople().contains(person)){
+										futureBlocksCount++;
+										postBlock = postBlock.getPostBlock();
+										continue;
+									} else {
+										break;
+									}
+								} else {
+									break;
+								}
+							}
+							//How far into the past can we go and still have the same person?
+							int pastBlocksCount = 0;
+							while (true){
+								if (priorBlock != null){
+									if (priorBlock.getPeople().contains(person)){
+										pastBlocksCount++;
+										priorBlock = priorBlock.getPriorBlock();
+										continue;
+									} else {
+										break;
+									}
+								} else {
+									break;
+								}
+							}
+
+							totalInARow = pastBlocksCount + futureBlocksCount + 1; //+1 for the new assignment
+						}
+						String blockRotationName = block.getRotation().getName();
+						writer.print(blockRotationName);
+						if (!person.isChangeable(block)){
+							writer.print("*");
+						}
+						if (totalInARow != block.getDurationType()){
+							writer.print("(" + totalInARow + "/" + block.getDurationType() + ")");
+						}
+						writer.print(",");
+
+					}
+				} else {
+					writer.print("VAC,");
+				}
+			}
+
+			writer.print("\n");
+		}
+		writer.print("\n\n\n");
+
+
+		//Print out the information about the services and rotations.
+		writer.print("PERSONNEL CONSTRAINT: MIN/MAX PEOPLE REQUIRED\n");
+		writer.print("Service,Rotation,,,,,,,,");
+		for (int i = 0; i < blockNames.size(); i ++){
+			writer.print(blockNames.get(i)+ ",");
+		}
+		writer.print("\n");
+		for (int i = 0; i < services.size(); i ++){
+			Service sv = services.get(i);
+			ArrayList<Rotation> rts = sv.getRotations();
+			for (int j = 0; j < rts.size(); j ++){
+				Rotation rt = rts.get(j);
+				writer.print(sv.getName() + "," + rt.getName() + ",,,,,,,,");
+
+				ArrayList<Block> blockList = rt.getBlockList();;
+				for (int k = 0; k < blockNames.size(); k ++){
+					String columnBlockName = blockNames.get(k);
+
+					boolean found = false;
+					int block_ind = -1;
+					for (int kk = 0; kk < blockList.size(); kk++){
+						String rotationBlockName = blockList.get(kk).getBlockName();
+						if (rotationBlockName.equals(columnBlockName)){
+							found = true;
+							block_ind = kk;
+							break;
+						}
+					}
+
+					if (found){
+						String str = "";
+						Block block = blockList.get(block_ind);
+
+						if (block.getPeople().size() > block.getBlockMax()){
+							//This block has too many people
+							str = "\"+" + (block.getPeople().size()-block.getBlockMax()) + "\"";                                
+						} else if (block.getPeople().size() < block.getBlockMin()){
+							//This block doesn't have enough people
+							str = "\"-" + (block.getBlockMin()-block.getPeople().size()) + "\"";                                
+						}
+						writer.print(str + ",");
+					} else {
+						writer.print(",");
 					}
 				}
-
 				writer.print("\n");
 			}
-			writer.print("\n\n\n");
-
-
-			//Print out the information about the services and rotations.
-			writer.print("PERSONNEL CONSTRAINT: MIN/MAX PEOPLE REQUIRED\n");
-			writer.print("Service,Rotation,,,,,,,");
-			for (int i = 0; i < blockNames.size(); i ++){
-				writer.print(blockNames.get(i)+ ",");
-			}
-			writer.print("\n");
-			for (int i = 0; i < services.size(); i ++){
-				Service sv = services.get(i);
-				ArrayList<Rotation> rts = sv.getRotations();
-				for (int j = 0; j < rts.size(); j ++){
-					Rotation rt = rts.get(j);
-					writer.print(sv.getName() + "," + rt.getName() + ",,,,,,,");
-
-					ArrayList<Block> blockList = rt.getBlockList();;
-					for (int k = 0; k < blockNames.size(); k ++){
-						String columnBlockName = blockNames.get(k);
-
-						boolean found = false;
-						int block_ind = -1;
-						for (int kk = 0; kk < blockList.size(); kk++){
-							String rotationBlockName = blockList.get(kk).getBlockName();
-							if (rotationBlockName.equals(columnBlockName)){
-								found = true;
-								block_ind = kk;
-								break;
-							}
-						}
-
-						if (found){
-							String str = "";
-							Block block = blockList.get(block_ind);
-							
-							if (block.getPeople().size() > block.getBlockMax()){
-								//This block has too many people
-								str = "\"+" + (block.getPeople().size()-block.getBlockMax()) + "\"";								
-							} else if (block.getPeople().size() < block.getBlockMin()){
-								//This block doesn't have enough people
-								str = "\"-" + (block.getBlockMin()-block.getPeople().size()) + "\"";								
-							}
-							writer.print(str + ",");
-						} else {
-							writer.print(",");
-						}
-					}
-					writer.print("\n");
-				}
-			}
-
-			//Print out the information about the firm constraint.
-			writer.print("\n\n\n");
-			writer.print("FIRM CONSTRAINT: NUMBER PEOPLE NOT IN RIGHT FIRM\n");
-			writer.print("Service,Rotation,,,,,,,");
-			for (int i = 0; i < blockNames.size(); i ++){
-				writer.print(blockNames.get(i)+ ",");
-			}
-			writer.print("\n");
-			for (int i = 0; i < services.size(); i ++){
-				Service sv = services.get(i);
-				ArrayList<Rotation> rts = sv.getRotations();
-				for (int j = 0; j < rts.size(); j ++){
-					Rotation rt = rts.get(j);
-					writer.print(sv.getName() + "," + rt.getName() + ",,,,,,,");
-
-					ArrayList<Block> blockList = rt.getBlockList();;
-					for (int k = 0; k < blockNames.size(); k ++){
-						String columnBlockName = blockNames.get(k);
-
-						boolean found = false;
-						int block_ind = -1;
-						for (int kk = 0; kk < blockList.size(); kk++){
-							String rotationBlockName = blockList.get(kk).getBlockName();
-							if (rotationBlockName.equals(columnBlockName)){
-								found = true;
-								block_ind = kk;
-								break;
-							}
-						}
-						if (found){
-							//Did anyone violate the firm constraint?
-							Block block = blockList.get(block_ind);
-							double numViolatingFirmConstraint = 0;
-							if (block.getFirmConstraint() > -1){
-								for (Person person : block.getPeople()){
-									if (person.getFirm() != block.getFirmConstraint()){
-										numViolatingFirmConstraint += 1;
-									}
-								}
-							}
-							if (numViolatingFirmConstraint > 0){
-								writer.print(numViolatingFirmConstraint + ",");
-							} else {
-								writer.print(",");
-							}
-						} else {
-							writer.print(",");
-						}
-					}
-					writer.print("\n");
-				}
-			}
-			writer.close();
-		} catch (FileNotFoundException | UnsupportedEncodingException e) {
-			e.printStackTrace();
 		}
-		/**
-		 * ^^^ TO HERE ^^^
-		 */
+		writer.close();
 	}
 	
 	double round4Decimals(double d) {

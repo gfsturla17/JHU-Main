@@ -1,10 +1,29 @@
 $(document).ready(function(){
 	
 	$("#runSched").click(runSched);
+	$("#runSched").click(runSched);
 	$("#emailSched").click(emailSchedule);
+	$("#uploadButton").show();
+	$("#scheduleScore").show();
+	
+	document.getElementById('emailSched').disabled = true;
+	document.getElementById('userEmail').disabled = true;
+	$("#emailSched").show();
+	$("#userEmail").show()
+	$("#spinner").hide();
+	window.x("0,0|");	
 
-	$("#emailSched").hide();
-	$("#userEmail").hide();
+	$('input[type="file"]').ajaxfileupload({
+	      'action': 'FileUploader',	      	    
+	  'onComplete': function(response) {	        
+	        $('#upload').hide();
+	        alert("File has been uploaded");
+	      },
+	      'onStart': function() {
+	        $('#upload').show(); 
+	      }
+	 });
+	
 });
 
 
@@ -17,14 +36,24 @@ function cancelRun(){
 
 var webSocket;
 function runSched(){
+	$("#spinner").show();
 	
     // Ensures only one connection is open at a time
     if(webSocket !== undefined && webSocket.readyState !== WebSocket.CLOSED){
-       alert("Tests are already running!");
         return;
     }
 
-    webSocket = new WebSocket("ws://localhost:8080/Hopkins_Web_App/actions");
+    if (document.getElementById('quick').checked) {
+    	webSocket = new WebSocket("ws://ec2-54-82-164-57.compute-1.amazonaws.com:8080/jhu/actions");
+//    	webSocket = new WebSocket("ws://ec2-184-72-70-197.compute-1.amazonaws.com:8080/hopkins/actions");
+    	
+    	
+    }else if(document.getElementById('thorough').checked){
+    	webSocket = new WebSocket("ws://ec2-54-82-164-57.compute-1.amazonaws.com:8080/jhu/thorough");
+//    	webSocket = new WebSocket("ws://ec2-184-72-70-197.compute-1.amazonaws.com:8080/hopkins/thorough");
+
+    }
+    
      
     /**
      * Binds functions to the listeners for the websocket.
@@ -36,11 +65,10 @@ function runSched(){
 
     webSocket.onmessage = function(event){
         var data = event.data.split("~");
-        alert["1"];
         var progress = data[1] + " ";
+        var update = data[0] + " ";
         console.log(progress);
 
-        alert[progress];
         
         if(progress=="Error"){
         	cancelRun();
@@ -53,12 +81,22 @@ function runSched(){
         	window.x(data[0]);	
         }
         
-        if(progress === "100"){
-        	cancelRun();
+        if(progress == "ThoroughUpdate "){
+            console.log(update);
+
+        	document.getElementById("scheduleScore").innerHTML = "New best schedule found on:  " + update;
+        }
+        if(progress == "Parsing "){
+        	$("#spinner").hide();
+        }
+        
+        if(progress == "100 "){
         	alert("Finished Running Schedule");
+        	document.getElementById('emailSched').disabled = false;
+        	document.getElementById('userEmail').disabled = false;
     		$("#emailSched").show();
         	$("#userEmail").show();
-
+        	$("#runSched").click(runSched);
         }      
     };
 
@@ -85,6 +123,22 @@ var emailSchedule = function() {
 		alert(res);
 	});
 };
+
+var uploadFile = function(){
+	alert("upload");
+	 $("#file").ajaxfileupload({
+	      'action': 'FileUploader',	      	    
+	  'onComplete': function(response) {	        
+	        alert("File SAVED!!");
+	      },
+	      'onStart': function() {
+	        $('#upload').show(); 
+	      }
+	 });
+
+}   
+
+
 
 
 

@@ -27,6 +27,8 @@ public class Person {
 	
 	private int numOverallViolations;
 	private int numYearlyViolations;
+	
+	private double randomizer;
 
 	public Person(String name, int year, int firm, boolean MP_Flag, boolean UH_Flag, HashMap<String, Integer[]> yearlyReqs, HashMap<String, Integer[]> overallReqs, HashMap<String,Integer> overallReqTally, HashMap<String, Integer> vacationPrefs){
 
@@ -64,6 +66,8 @@ public class Person {
 		
 		updateNumYearlyViolations();
 		updateNumOverallViolations();
+		
+		randomizer = Math.random();
 	}
 
 	public String getName(){
@@ -443,4 +447,34 @@ public class Person {
 		}
 		return true;
 	}
+
+	public double getRandomizer() {
+		return randomizer;
+	}
+	
+	public String getFirmViolations() {
+        String str = "\"";
+        if (year == 4){
+            str += "\"";
+            return str;
+        }
+        int count = 0;
+        for (String blockName : schedule.keySet()){
+            Block block = schedule.get(blockName);
+            if (block.getFirmConstraint() > -1 && block.getFirmConstraint() != this.firm){
+                if (count > 0){
+                    str = str + ",";
+                }
+                str = str + block.getRotation().getName() + "(" + block.getBlockName() + ")";
+
+                if (!isChangeable(block)){
+                    str = str+"*";
+                }
+                count++;
+            }
+        }
+        str += "\"";
+
+        return str;
+    }
 }

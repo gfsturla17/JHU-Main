@@ -35,7 +35,7 @@ public class EmailServlet extends HttpServlet{
 	 
 	     MailService mailService = new MailService();
 	     
-	     File file = new File("C:\\Users\\Giovanni\\Documents\\JHU\\");       
+	     File file = new File("/home/ubuntu/Tercio/JHU");       
 			Collection<File> files = FileUtils.listFiles(file, null, true);
 			File finalFile = null;
 			FileTime latestFileTime = FileTime.from(0,TimeUnit.MILLISECONDS);

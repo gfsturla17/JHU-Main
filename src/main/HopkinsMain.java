@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -22,45 +23,54 @@ import services.MailService;
 
 public class HopkinsMain {
 	Session session;
+	boolean fastSchedule;
 	
-	public HopkinsMain(Session session){
+	public HopkinsMain(Session session, boolean fastSchedule){
 		this.session = session;
+		this.fastSchedule = fastSchedule;
 	}
 	
-	public void run(String args[]) throws IOException{
+	public void run() throws IOException, ParseException{
 		System.out.println("started running");
 		String directory;
 		String name = "Intern_input";
-//		if (args.length == 0){
-//			directory = "";//"C:\\Users\\Matthew\\Desktop\\Scheduling of Residents\\";
-////			name = "JAR_SAR_Input";
-//			name = "Intern_Input";
-//		} else {
-//			directory = args[0];
-//			name = args[1];
-//		}
-//		String file = directory+name + ".xls";
-//		String file = "C:\\Users\\Giovanni\\Desktop\\Intern_input.xls";
+
 		File file = findLatestUploadedFile();
 		String fileName = file.getAbsolutePath();
-
-		//Create the parser and get all of the information from the file.
-		HopkinsParser parser = new HopkinsParser(session);
-		parser.parseFile(fileName);
-		ArrayList<String> blockNames = parser.getBlockNames();
-		ArrayList<Person> people = parser.getPeople();
-		ArrayList<Service> services = parser.getServices();
-		double[] multipliers = parser.getMultipliers();
-
-		HillClimber solver = new HillClimber(services,people,blockNames,multipliers,name, session);
-		solver.solve();
-		emailSchedule();
 		
+		double bestScheduleSoFar = Double.NEGATIVE_INFINITY;
+		ArrayList<Double> scoreList = new ArrayList<Double>();
+		long timeOut = 1*24*60*60*1000; // 1 day * 24 hr/day * 60 min/hr * 60 sec/min * 1000 ms/sec 
+		long startTime = System.currentTimeMillis();
+		while (true){
+
+			//Create the parser and get all of the information from the file.
+			HopkinsParser parser = new HopkinsParser(session);
+			parser.parseFile(fileName);
+			ArrayList<String> blockNames = parser.getBlockNames();
+			ArrayList<Person> people = parser.getPeople();
+			ArrayList<Service> services = parser.getServices();
+			double[] multipliers = parser.getMultipliers();
+
+			
+			HillClimber solver = new HillClimber(services,people,blockNames,multipliers,name,fastSchedule,bestScheduleSoFar,session, scoreList);
+			scoreList = solver.solve();
+		
+			if (fastSchedule){
+				break;
+			} else {
+				if (System.currentTimeMillis() - startTime > timeOut){
+					break;
+				}
+			}
+		}
+		emailSchedule();
+		session.getBasicRemote().sendText("Perform 2-opt (2 people x 2 Blocks)~100");
 
 	}
 	
 	public void emailSchedule() throws IOException{
-		File file = new File("C:\\Users\\Giovanni\\Documents\\JHU\\");       
+		File file = new File("/home/ubuntu/Tercio/JHU/");       
 		Collection<File> files = FileUtils.listFiles(file, null, true);
 		File finalFile = null;
 		FileTime latestFileTime = FileTime.from(0,TimeUnit.MILLISECONDS);
@@ -80,7 +90,9 @@ public class HopkinsMain {
 	}
 	
 	private File findLatestUploadedFile() throws IOException{
-		File file = new File("C:\\Users\\Giovanni\\Documents\\apache-tomcat-8.0.18\\webapps\\data\\");       
+		File file = new File("/var/lib/tomcat7/webapps/data"); 
+//		File file = new File("C:\\Tercio\\Documents\\apache-tomcat-7.0.64\\webapps\\data"); 
+
 		Collection<File> files = FileUtils.listFiles(file, null, true);
 		File finalFile = null;
 		FileTime latestFileTime = FileTime.from(0,TimeUnit.MILLISECONDS);

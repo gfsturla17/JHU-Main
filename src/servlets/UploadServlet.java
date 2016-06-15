@@ -77,7 +77,6 @@ public class UploadServlet extends HttpServlet {
             fi.write( file ) ;
          }
       }
-      out.println ("<html><body><script>alert('File Uploaded');</script></body></html>");
    }catch(Exception ex) {
        System.out.println(ex);
    }

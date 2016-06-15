@@ -1,0 +1,8 @@
+AuthName "My Secret Folder"
+AuthType Basic
+AuthUserFile C:\Users\Giovanni\Documents\Tercio\Hopkins Web App\WebContent\site
+Require valid-user
+
+<Files "index.html">
+  Require valid-user
+</Files>

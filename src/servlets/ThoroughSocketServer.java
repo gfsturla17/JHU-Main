@@ -12,18 +12,19 @@ import main.HopkinsMain;
 
 
 
-@ServerEndpoint("/actions")
-public class SocketServer {
+@ServerEndpoint("/thorough")
+public class ThoroughSocketServer {
 	boolean empty = false;
 	
 	@OnOpen
 	public void open(Session session) throws Exception {
 		empty = false;
 		String directory = "";//"C:\\Users\\Matthew\\Desktop\\Scheduling of Residents\\";
+		String name = "JAR_SAR_Input.xls";
+		String[] args = new String[]{directory,name};
 		
-		HopkinsMain main = new HopkinsMain(session, true);
+		HopkinsMain main = new HopkinsMain(session, false);
 		main.run();
-
 	}
 	
 	@OnClose

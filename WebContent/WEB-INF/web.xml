@@ -10,16 +10,56 @@
   	<servlet-name>EmailServlet</servlet-name>
   	<servlet-class>servlets.EmailServlet</servlet-class>
   </servlet>
+  <servlet>
+  	<servlet-name>LoginServlet</servlet-name>
+  	<servlet-class>servlets.LoginServlet</servlet-class>
+  </servlet>
+  <servlet>
+  	<display-name>LoginServlet2</display-name> 
+  	<servlet-name>LoginServlet2</servlet-name>
+  	<servlet-class>servlets.LoginServlet2</servlet-class>
+  </servlet>
+  <servlet>
+  	<servlet-name>LogoutServlet</servlet-name>
+  	<servlet-class>servlets.LogoutServlet</servlet-class>
+  </servlet>
+  <servlet>
+    <display-name>ProfileServlet</display-name> 
+  	<servlet-name>ProfileServlet</servlet-name>
+  	<servlet-class>servlets.ProfileServlet</servlet-class>
+  </servlet><servlet>
+  	<servlet-name>FileUploader</servlet-name>
+  	<servlet-class>servlets.FileUploader</servlet-class>
+  </servlet>
   
 <!-- Servlet Mappings -->
   <servlet-mapping>
     <servlet-name>UploadServlet</servlet-name>
     <url-pattern>/site/UploadServlet</url-pattern>
   </servlet-mapping>
-  
   <servlet-mapping>
     <servlet-name>EmailServlet</servlet-name>
     <url-pattern>/site/EmailServlet</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>LoginServlet</servlet-name>
+    <url-pattern>/site/LoginServlet</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>FileUploader</servlet-name>
+    <url-pattern>/site/FileUploader</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>LoginServlet2</servlet-name>
+    <url-pattern>/site/LoginServlet2</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>ProfileServlet</servlet-name>
+    <url-pattern>/site/ProfileServlet</url-pattern>
+  </servlet-mapping>
+  <servlet-mapping>
+    <servlet-name>LogoutServlet</servlet-name>
+    <url-pattern>/site/LogoutServlet</url-pattern>
   </servlet-mapping>
 
 <!-- Upload File configuration -->
@@ -27,7 +67,7 @@
     <description>Location to store uploaded file</description> 
     <param-name>file-upload</param-name> 
     <param-value>
-         C:\Users\Giovanni\Documents\apache-tomcat-8.0.18\webapps\data\
+         C:\Users\Giovanni\Documents\apache-tomcat-8.0.18\webapps\data
      </param-value> 
 	</context-param>
 </web-app>
